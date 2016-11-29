@@ -1,7 +1,9 @@
+import pdb
 import csv
 
 global totalBlocks
 allocated_blocks = {}
+
 class Inode:
     def __init__(self, iNum,numLinks, numBlocks, p1,p2,p3,p4,p5,
         p6,p7,p8,p9,p10,p11,p12,p13,p14,p15):
@@ -10,26 +12,47 @@ class Inode:
         self.number_of_links = numLinks
         self.number_of_blocks = numBlocks
         self.ptrs = [p1, p2, p3, p4, p5, p6, p7, p8,
-        p9, p10, p11, p12]
+        p9, p10, p11, p12, p13, p14, p15]
 
 class Block:
-    def __init__(bNum):
-        self.block_num = bnum
+    def __init__(self, bNum):
+        self.block_num = bNum
         self.ref_list = []
 
-def update_block(blockNum, inodeNum, indirectBlockNum, entryNum):
+
+
+def update_block(blockNum, inodeNum, indirectBlockNum, entryNum, file):
     if blockNum == 0 or blockNum >= totalBlocks:
-        pass#invalid block error
+        file.write("INVALID BLOCK < " + str(blockNum) + " > IN INODE < " + str(inodeNum) + " >\n") 
     elif blockNum in allocated_blocks:
-        allocated_blocks[blockNum].ref_list.add(inodeNum, indirectBlockNum, entryNum)
+        allocated_blocks[blockNum].ref_list.append((inodeNum, indirectBlockNum, entryNum))
     else:
         #new block number, so add it
-        allocated_blocks.add(blockNum)
-        allocated_blocks[blockNum].ref_list.add(inodeNum, indirectBlockNum, entryNum)
+        temp = Block(blockNum)
+        allocated_blocks[blockNum] = temp
+        allocated_blocks[blockNum].ref_list.append((inodeNum, indirectBlockNum, entryNum))
 
-def check_blocks(inode_map):
-    pass#numBlocks = 
-    
+def check_blocks(inode_map, file):
+    for value in inode_map.values():
+        #pdb.set_trace()
+        if value.number_of_blocks <= 12: #all should be direct blocks
+            for i in range(value.number_of_blocks):
+                if value.ptrs[i] != 0:
+                    update_block(value.ptrs[i], value.inode_number, 0, i, file) #i is entry number, 0-11
+        elif value.number_of_blocks > 12: #at least 1 indirect block
+            #for i in value.ptrs[12:value.number_of_blocks]: #indirect blocks
+            #pdb.set_trace()
+            i = value.ptrs[12]
+            if i == 0 or i >= totalBlocks:
+                file.write("INVALID BLOCK < " + str(i) + " > IN INODE < " + str(value.inode_number) + " >\n")
+            else:
+                #pdb.set_trace()
+                if i in indirect_map.values():
+                    val = indirect_map[i]
+                    update_block(i, value.iNum, val.block_num, val.entry_num, file)#will make sense once indirect_map is made
+                else:
+                    file.write("INVALID BLOCK < " + str(i) + " > IN INODE < " + str(value.inode_number) + " >\n")
+
 
 
 
@@ -42,7 +65,7 @@ if __name__ == '__main__':
         reader = csv.reader(csvfile)
         superblock_values = list(reader)
     global totalBlocks
-    totalBlocks = superblock_values[0][2]
+    totalBlocks = int(superblock_values[0][2])
     with open('group.csv', 'r') as csvfile:
         reader = csv.reader(csvfile)
         group_list = list(reader)
@@ -50,10 +73,15 @@ if __name__ == '__main__':
     with open('inode.csv', 'r') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
-            temp = Inode(row[0],row[5], row[10], row[11], row[12],row[13],
-            row[14],row[15], row[16],row[17],row[18],row[19],
-            row[20],row[21],row[22],row[23],row[24],row[25]) #not very snake..
+            temp = Inode(int(row[0]),int(row[5]), int(row[10]), int(row[11],16), int(row[12],16),int(row[13],16),
+            int(row[14],16),int(row[15],16), int(row[16],16),int(row[17],16),int(row[18],16),int(row[19],16),
+            int(row[20],16),int(row[21],16),int(row[22],16),int(row[23],16),int(row[24],16),int(row[25],16)) #not very snake..
             inode_dictionary[temp.inode_number] = temp
+    indirect_map = {}        
+    with open('indirect.csv', 'r') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader: #hash map <(block#, entry#),blockPtr>
+            indirect_map[(int(row[0],16),int(row[1]))] = int(row[2],16)
 
     block_bitmap_blocks = []
     inode_bitmap_blocks = []
@@ -69,7 +97,6 @@ if __name__ == '__main__':
             block_bitmap_blocks.append(b_num)
         elif block_bitmap_blocks[-1] != b_num: #only add each block# once
             block_bitmap_blocks.append(b_num)
-
     free_inode_list = []
     free_block_list = []
     #separate entries for free blocks and inodes
@@ -79,7 +106,10 @@ if __name__ == '__main__':
             free_block_list.append((num,int(i[1])))
         elif num in inode_bitmap_blocks:
             free_inode_list.append((num,int(i[1])))
-
+ #   pdb.set_trace()
+    output = open("lab3b_check.txt", 'w')        
+    output.truncate()
+    check_blocks(inode_dictionary, output)
 
 
 
